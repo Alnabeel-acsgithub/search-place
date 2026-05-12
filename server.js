@@ -317,6 +317,8 @@ app.post('/api/scrape-email', async (req, res) => {
   let email = null;
   let fbUrlFromSite = null;
 
+  console.log(`[scrape] url=${url || 'none'} name="${name}" city="${city}"`);
+
   // Phase 1: scrape business website, capture FB link from it
   if (url && typeof url === 'string') {
     try {
@@ -328,8 +330,10 @@ app.post('/api/scrape-email', async (req, res) => {
         email = result.email;
         fbUrlFromSite = result.fbUrl;
       }
-    } catch { /* invalid URL */ }
+    } catch (e) { console.log(`[scrape] phase1 error: ${e.message}`); }
   }
+
+  console.log(`[scrape] phase1 email=${email || 'none'} fbUrl=${fbUrlFromSite || 'none'}`);
 
   // Phase 1b: website had no email — scrape its linked Facebook page (uses Puppeteer)
   if (!email && fbUrlFromSite) {
@@ -347,6 +351,43 @@ app.post('/api/scrape-email', async (req, res) => {
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 // Serve config.js dynamically so the API key comes from environment variable
+// Debug endpoint — visit /api/debug on the production URL to diagnose issues
+app.get('/api/debug', async (_req, res) => {
+  const result = { node: process.version, platform: process.platform, env: process.env.NODE_ENV || 'none' };
+
+  // Test 1: can we fetch an external site?
+  try {
+    const r = await fetchHtml('https://example.com', 8000);
+    result.externalFetch = r ? 'ok' : 'returned null';
+  } catch (e) {
+    result.externalFetch = 'error: ' + e.message;
+  }
+
+  // Test 2: can puppeteer launch Chrome?
+  try {
+    const browser = await getBrowser();
+    if (browser) {
+      const page = await browser.newPage();
+      await page.close();
+      result.puppeteer = 'ok';
+    } else {
+      result.puppeteer = 'getBrowser returned null';
+    }
+  } catch (e) {
+    result.puppeteer = 'error: ' + e.message;
+  }
+
+  // Test 3: scrape a known email
+  try {
+    const email = await scrapeWebsite('https://goldsgym.in');
+    result.scrapeTest = email?.email || 'no email found';
+  } catch (e) {
+    result.scrapeTest = 'error: ' + e.message;
+  }
+
+  res.json(result);
+});
+
 app.get('/config.js', (_req, res) => {
   res.type('application/javascript');
   res.send(`const CONFIG = { GOOGLE_MAPS_API_KEY: "${process.env.GOOGLE_MAPS_API_KEY || ''}" };`);
