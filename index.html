@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Place Finder</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+
+    body {
+      background: linear-gradient(135deg, #f0f4ff 0%, #fafaff 60%, #f0f7ff 100%);
+      min-height: 100vh;
+    }
+
+    /* Hero gradient */
+    .hero-card {
+      background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #6366f1 100%);
+    }
+
+    /* Mode tag */
+    .mode-tag {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      letter-spacing: 0.02em;
+    }
+    .mode-tag.mock  { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+    .mode-tag.live  { background: #dcfce7; color: #166534; border: 1px solid #4ade80; }
+
+    /* Search inputs */
+    .search-input {
+      transition: all 0.2s;
+      border: 2px solid transparent;
+    }
+    .search-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 4px rgba(59,130,246,0.12);
+    }
+
+    /* Search button */
+    .search-btn {
+      background: linear-gradient(135deg, #2563eb, #4f46e5);
+      transition: all 0.2s;
+    }
+    .search-btn:hover:not(:disabled) {
+      background: linear-gradient(135deg, #1d4ed8, #4338ca);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 25px rgba(37,99,235,0.4);
+    }
+    .search-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+
+    /* Table */
+    .results-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; width: 100%; }
+    .results-table th {
+      position: sticky;
+      top: 0;
+      background: #f8fafc;
+      z-index: 10;
+      overflow: hidden;
+    }
+    .results-table td { overflow: hidden; }
+
+    /* Category badges */
+    .category-badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .cat-restaurant { background: #fef3c7; color: #92400e; }
+    .cat-gym        { background: #dcfce7; color: #166534; }
+    .cat-doctor     { background: #dbeafe; color: #1e40af; }
+    .cat-mobile     { background: #f3e8ff; color: #6b21a8; }
+    .cat-hotel      { background: #ffe4e6; color: #9f1239; }
+    .cat-default    { background: #f1f5f9; color: #475569; }
+
+    /* Status badges */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .status-badge.open    { background: #dcfce7; color: #166534; }
+    .status-badge.closed  { background: #fee2e2; color: #991b1b; }
+    .status-badge.unknown { background: #f1f5f9; color: #64748b; }
+
+    /* Table container — no horizontal scroll */
+    .table-container {
+      border-radius: 0.75rem;
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+
+    /* Shimmer loading */
+    @keyframes shimmer {
+      0%   { background-position: -1000px 0; }
+      100% { background-position: 1000px 0; }
+    }
+    .shimmer {
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 1000px 100%;
+      animation: shimmer 1.5s infinite;
+    }
+
+    /* Card shadow */
+    .card {
+      background: white;
+      border-radius: 1rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+    }
+
+    /* Scroll bar */
+    .table-container::-webkit-scrollbar { height: 6px; }
+    .table-container::-webkit-scrollbar-track { background: #f1f5f9; }
+    .table-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  </style>
+</head>
+<body class="pb-16">
+
+  <!-- ====== HEADER ====== -->
+  <header class="hero-card shadow-xl">
+    <div class="max-w-7xl mx-auto px-6 py-8">
+      <div class="flex items-center justify-between flex-wrap gap-4">
+
+        <!-- Logo & title -->
+        <div class="flex items-center gap-3">
+          <div class="bg-white/20 rounded-xl p-2.5">
+            <i class="fas fa-map-marker-alt text-white text-xl"></i>
+          </div>
+          <div>
+            <h1 class="text-white text-2xl font-bold tracking-tight">Place Finder</h1>
+            <p class="text-blue-200 text-sm">Search businesses &amp; places worldwide</p>
+          </div>
+        </div>
+
+        <!-- Mode indicator -->
+        <div>
+          <span id="modeTag" class="mode-tag mock">
+            <i class="fas fa-database mr-1"></i> Loading...
+          </span>
+        </div>
+      </div>
+
+      <!-- ====== SEARCH FORM ====== -->
+      <form id="searchForm" class="mt-8">
+        <div class="flex flex-col sm:flex-row gap-3">
+
+          <!-- Keyword -->
+          <div class="relative flex-1">
+            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+              <i class="fas fa-tag text-sm"></i>
+            </span>
+            <input
+              id="keyword"
+              type="text"
+              placeholder="Keywords (e.g. restaurants, gym, doctor)"
+              class="search-input w-full pl-10 pr-4 py-3.5 rounded-xl text-gray-800 bg-white text-sm font-medium shadow-sm"
+              required
+            />
+          </div>
+
+          <!-- Location -->
+          <div class="relative flex-1">
+            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+              <i class="fas fa-location-dot text-sm"></i>
+            </span>
+            <input
+              id="location"
+              type="text"
+              placeholder="Location (e.g. Mumbai, New York, Dubai)"
+              class="search-input w-full pl-10 pr-4 py-3.5 rounded-xl text-gray-800 bg-white text-sm font-medium shadow-sm"
+              required
+            />
+          </div>
+
+          <!-- Submit -->
+          <button
+            id="searchBtn"
+            type="submit"
+            class="search-btn text-white font-semibold px-8 py-3.5 rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 whitespace-nowrap"
+          >
+            <i class="fas fa-search"></i>
+            Search Places
+          </button>
+        </div>
+
+        <!-- Quick keywords -->
+        <div class="mt-3 flex flex-wrap gap-2">
+          <span class="text-blue-200 text-xs font-medium mr-1 self-center">Try:</span>
+          <button type="button" class="quick-tag" onclick="fillSearch('restaurants','Mumbai')">🍽️ Restaurants in Mumbai</button>
+          <button type="button" class="quick-tag" onclick="fillSearch('gym','Delhi')">💪 Gym in Delhi</button>
+          <button type="button" class="quick-tag" onclick="fillSearch('doctors','Bangalore')">🏥 Doctors in Bangalore</button>
+          <button type="button" class="quick-tag" onclick="fillSearch('mobile shops','New York')">📱 Mobile Shops in New York</button>
+          <button type="button" class="quick-tag" onclick="fillSearch('hotels','Dubai')">🏨 Hotels in Dubai</button>
+        </div>
+      </form>
+    </div>
+  </header>
+
+  <style>
+    .quick-tag {
+      background: rgba(255,255,255,0.15);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.3);
+      font-size: 0.72rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .quick-tag:hover { background: rgba(255,255,255,0.25); transform: translateY(-1px); }
+  </style>
+
+  <!-- ====== MAIN CONTENT ====== -->
+  <main class="max-w-7xl mx-auto px-6 mt-8">
+
+    <!-- Enrichment progress banner -->
+    <div id="enrichmentBanner" class="hidden mb-4">
+      <div class="card p-4 flex items-center gap-4">
+        <div class="w-6 h-6 rounded-full border-2 border-blue-200 border-t-blue-500 animate-spin flex-shrink-0"></div>
+        <div class="flex-1">
+          <p id="enrichmentText" class="text-sm font-medium text-gray-700">Finding emails…</p>
+          <div class="mt-1.5 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div id="enrichmentBar" class="h-full bg-blue-500 rounded-full transition-all duration-300" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading spinner -->
+    <div id="loadingSpinner" class="hidden text-center py-16">
+      <div class="inline-flex flex-col items-center gap-4">
+        <div class="w-14 h-14 rounded-full border-4 border-blue-100 border-t-blue-500 animate-spin"></div>
+        <p id="loadingLabel" class="text-gray-500 text-sm font-medium">Searching for places…</p>
+      </div>
+    </div>
+
+    <!-- Results section -->
+    <div id="resultsSection" class="hidden">
+
+      <!-- Summary + actions bar -->
+      <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <p id="resultsSummary" class="text-gray-700 text-sm font-medium"></p>
+        <div class="flex gap-2">
+          <button
+            id="exportBtn"
+            class="hidden items-center gap-2 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-4 py-2 rounded-lg transition-colors"
+          >
+            <i class="fas fa-download"></i> Export CSV
+          </button>
+          <button
+            id="clearBtn"
+            class="hidden items-center gap-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 px-4 py-2 rounded-lg transition-colors"
+          >
+            <i class="fas fa-xmark"></i> Clear
+          </button>
+        </div>
+      </div>
+
+      <!-- Table card -->
+      <div class="card">
+        <div class="table-container">
+          <table class="results-table text-sm">
+            <colgroup>
+              <col style="width:3%">
+              <col style="width:16%">
+              <col style="width:9%">
+              <col style="width:8%">
+              <col style="width:15%">
+              <col style="width:8%">
+              <col style="width:11%">
+              <col style="width:13%">
+              <col style="width:6%">
+              <col style="width:11%">
+            </colgroup>
+            <thead>
+              <tr class="text-left text-xs text-gray-500 font-semibold uppercase tracking-wider border-b border-gray-200">
+                <th class="px-2 py-2 text-center">#</th>
+                <th class="px-2 py-2">Business Name</th>
+                <th class="px-2 py-2">Category</th>
+                <th class="px-2 py-2">Rating</th>
+                <th class="px-2 py-2">Address</th>
+                <th class="px-2 py-2">City</th>
+                <th class="px-2 py-2">Phone</th>
+                <th class="px-2 py-2">Email</th>
+                <th class="px-2 py-2">Website</th>
+                <th class="px-2 py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Footer note -->
+      <p class="text-center text-gray-400 text-xs mt-4">
+        <i class="fas fa-info-circle mr-1"></i>
+        Click on a business name to view it on Google Maps.
+        <span id="liveNote" class="hidden ml-2">Data sourced from Google Places API.</span>
+      </p>
+    </div>
+
+    <!-- Welcome state (shown before first search) -->
+    <div id="welcomeState" class="text-center py-20">
+      <div class="inline-flex flex-col items-center gap-4 max-w-md">
+        <div class="w-20 h-20 rounded-2xl bg-blue-50 flex items-center justify-center">
+          <i class="fas fa-map-location-dot text-blue-400 text-3xl"></i>
+        </div>
+        <div>
+          <h2 class="text-gray-800 text-xl font-bold">Find any place, anywhere</h2>
+          <p class="text-gray-500 text-sm mt-2 leading-relaxed">
+            Enter a keyword like <em>restaurants</em>, <em>gym</em>, or <em>doctors</em> along with a city name to discover top-rated places near you.
+          </p>
+        </div>
+        <div class="grid grid-cols-3 gap-3 w-full mt-2">
+          <div class="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
+            <div class="text-2xl mb-1">🍽️</div>
+            <div class="text-xs text-gray-600 font-medium">Restaurants</div>
+          </div>
+          <div class="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
+            <div class="text-2xl mb-1">💪</div>
+            <div class="text-xs text-gray-600 font-medium">Gyms</div>
+          </div>
+          <div class="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
+            <div class="text-2xl mb-1">🏥</div>
+            <div class="text-xs text-gray-600 font-medium">Hospitals</div>
+          </div>
+          <div class="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
+            <div class="text-2xl mb-1">📱</div>
+            <div class="text-xs text-gray-600 font-medium">Mobile Shops</div>
+          </div>
+          <div class="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
+            <div class="text-2xl mb-1">🏨</div>
+            <div class="text-xs text-gray-600 font-medium">Hotels</div>
+          </div>
+          <div class="bg-white rounded-xl p-3 border border-gray-100 shadow-sm text-center">
+            <div class="text-2xl mb-1">🏫</div>
+            <div class="text-xs text-gray-600 font-medium">Schools</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Scripts -->
+  <script src="config.js"></script>
+  <script src="mockData.js"></script>
+  <script src="app.js"></script>
+
+  <script>
+    function fillSearch(keyword, location) {
+      document.getElementById("keyword").value = keyword;
+      document.getElementById("location").value = location;
+      document.getElementById("searchForm").requestSubmit();
+    }
+  </script>
+</body>
+</html>
