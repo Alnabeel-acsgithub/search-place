@@ -133,6 +133,7 @@ async function searchLive(keyword, location) {
     const data = await res.json();
     const places = (data.places || []).map(normalizePlace);
     allPlaces = allPlaces.concat(places);
+    console.log(`Page fetched: ${places.length} results, total so far: ${allPlaces.length}, nextPageToken: ${data.nextPageToken ? 'yes' : 'no'}`);
 
     // Stop if no more pages or we hit the target
     if (!data.nextPageToken || places.length < PER_PAGE) break;
