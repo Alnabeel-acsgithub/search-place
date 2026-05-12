@@ -87,7 +87,6 @@ function searchMock(keyword, location) {
 // ---------- Live Search (Places API New — single request) ----------
 
 async function searchLive(keyword, location) {
-  // All fields in one request: Basic (free) + Contact + Atmosphere
   const fieldMask = [
     "places.id",
     "places.displayName",
@@ -100,29 +99,47 @@ async function searchLive(keyword, location) {
     "places.userRatingCount",
     "places.currentOpeningHours.openNow",
     "places.nationalPhoneNumber",
-    "places.websiteUri"
+    "places.websiteUri",
+    "nextPageToken"
   ].join(",");
 
-  const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": CONFIG.GOOGLE_MAPS_API_KEY,
-      "X-Goog-FieldMask": fieldMask
-    },
-    body: JSON.stringify({
-      textQuery: `${keyword} in ${location}`,
-      maxResultCount: 20
-    })
-  });
+  const TARGET = 50;
+  const PER_PAGE = 20;
+  let allPlaces = [];
+  let pageToken = null;
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `API error ${res.status}`);
+  while (allPlaces.length < TARGET) {
+    const body = {
+      textQuery: `${keyword} in ${location}`,
+      maxResultCount: PER_PAGE
+    };
+    if (pageToken) body.pageToken = pageToken;
+
+    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": CONFIG.GOOGLE_MAPS_API_KEY,
+        "X-Goog-FieldMask": fieldMask
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `API error ${res.status}`);
+    }
+
+    const data = await res.json();
+    const places = (data.places || []).map(normalizePlace);
+    allPlaces = allPlaces.concat(places);
+
+    // Stop if no more pages or we hit the target
+    if (!data.nextPageToken || places.length < PER_PAGE) break;
+    pageToken = data.nextPageToken;
   }
 
-  const data = await res.json();
-  return (data.places || []).map(normalizePlace);
+  return allPlaces.slice(0, TARGET);
 }
 
 // ---------- Email Enrichment ----------
