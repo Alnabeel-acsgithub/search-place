@@ -36,8 +36,12 @@ function renderResults(items) {
       <td class="px-2 py-3">${escapeHtml(it.formatted_address || '')}</td>
       <td class="px-2 py-3">${escapeHtml(it.city || '')}</td>
       <td class="px-2 py-3">${escapeHtml(it.formatted_phone_number || '')}</td>
-      <td class="px-2 py-3">${escapeHtml(it.email || '')}</td>
-      <td class="px-2 py-3">${it.website ? `<a href="${escapeAttr(it.website)}" target="_blank" class="text-blue-600"><i class="fas fa-globe"></i></a>` : ''}</td>
+      <td class="px-2 py-3 email-cell">${escapeHtml(it.email || '')}</td>
+      <td class="px-2 py-3">
+        ${it.website ? `<a href="${escapeAttr(it.website)}" title="${escapeAttr(it.website)}" target="_blank" class="text-blue-600"><i class="fas fa-globe"></i></a>` : ''}
+        ${it.fbUrl ? ` <a href="${escapeAttr(it.fbUrl)}" title="Facebook" target="_blank" class="text-blue-600"><i class="fab fa-facebook"></i></a>` : ''}
+        <button onclick="enrichRow('${it.place_id}', this)" class="ml-2 text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded">Enrich</button>
+      </td>
       <td class="px-2 py-3">${escapeHtml(it.business_status || '')}</td>
     `;
     tbody.appendChild(tr);
@@ -47,6 +51,95 @@ function renderResults(items) {
   document.getElementById('exportBtn').classList.remove('hidden');
   document.getElementById('clearBtn').classList.remove('hidden');
   document.getElementById('resultsSection').classList.remove('hidden');
+}
+
+// Enrich a single row on demand using Puppeteer (stronger detection)
+async function enrichRow(placeId) {
+  const rows = (typeof state !== 'undefined' && state.results) ? state.results : [];
+  const row = rows.find(r => r.place_id === placeId);
+  if (!row) return;
+  const btn = event && event.target ? event.target : null;
+  if (btn) { btn.disabled = true; btn.innerText = 'Working...'; }
+
+  try {
+    const resp = await fetch('/api/enrich-places', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ places: [row], usePuppeteer: true })
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      const e = (data.results || [])[0];
+      if (e) {
+        row.email = e.email || row.email;
+        row.fbUrl = e.fbUrl || row.fbUrl;
+        renderResults(rows);
+      }
+    } else {
+      console.warn('Enrich failed for', placeId);
+    }
+  } catch (err) {
+    console.error(err);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerText = 'Enrich'; }
+  }
+}
+
+// Start enrichment: fetch emails for each result and update table
+async function startEnrichment() {
+  const rows = (typeof state !== 'undefined' && state.results) ? state.results : [];
+  if (!rows.length) return;
+  document.getElementById('enrichmentBanner').classList.remove('hidden');
+  document.getElementById('enrichmentText').innerText = 'Finding emails…';
+  const bar = document.getElementById('enrichmentBar');
+  let found = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    document.getElementById('enrichmentText').innerText = `Finding emails… (${i+1}/${rows.length})`;
+    // First try lightweight HTML fetch via server
+    try {
+      const resp = await fetch('/api/enrich-places', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([r])
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const e = (data.results || [])[0];
+        if (e && e.email) {
+          r.email = e.email;
+          found++;
+        } else if (e && e.fbUrl) {
+          r.fbUrl = e.fbUrl;
+        }
+      }
+      // If still no email, run Puppeteer for this row
+      if (!r.email) {
+        const presp = await fetch('/api/enrich-places', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ places: [r], usePuppeteer: true })
+        });
+        if (presp.ok) {
+          const pdata = await presp.json();
+          const pe = (pdata.results || [])[0];
+          if (pe && pe.email) {
+            r.email = pe.email;
+            found++;
+          }
+          if (pe && pe.fbUrl) r.fbUrl = pe.fbUrl || r.fbUrl;
+        }
+      }
+    } catch (err) {
+      console.error('Enrich error for', r.place_id, err);
+    }
+    // Update UI for this row
+    renderResults(rows);
+    const pct = Math.round(((i+1)/rows.length)*100);
+    bar.style.width = pct + '%';
+  }
+  document.getElementById('enrichmentText').innerText = `Emails found: ${found}`;
+  setTimeout(() => document.getElementById('enrichmentBanner').classList.add('hidden'), 1200);
 }
 
 function escapeHtml(s) {
@@ -103,6 +196,8 @@ async function handleSearch(evt) {
       state.results = results;
     }
     renderResults(results);
+    // Kick off enrichment automatically for live results
+    if (isLive && results.length) startEnrichment();
   } catch (e) {
     console.error(e);
   } finally {
@@ -124,7 +219,7 @@ function clearResults() {
 function exportCSV() {
   const rows = (typeof state !== 'undefined' && state.results) ? state.results : [];
   if (!rows.length) return;
-  const headers = ['name','category','rating','address','city','phone','email','website','status'];
+  const headers = ['name','category','rating','address','city','phone','email','website','facebook','status'];
   const csv = [headers.join(',')].concat(rows.map(r => [r.name, r.category, r.rating, r.formatted_address, r.city, r.formatted_phone_number, r.email || '', r.website || '', r.business_status || ''].map(v => '"' + (String(v||'').replace(/"/g,'""')) + '"').join(',')) ).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);

@@ -236,3 +236,46 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(GOOGLE_MAPS_API_KEY ? `✅ Google API Key Loaded` : `⚠️ Mock Mode Only`);
 });
+
+// Enrich places with email by visiting website and falling back to Facebook
+app.post('/api/enrich-places', async (req, res) => {
+  const places = Array.isArray(req.body) ? req.body : (req.body && req.body.places) || [];
+  const usePuppeteer = !!(req.body && req.body.usePuppeteer);
+  if (!places.length) return res.status(400).json({ error: 'places required' });
+
+  const results = [];
+  for (const p of places) {
+    const out = Object.assign({}, p);
+    out.email = out.email || null;
+    out.fbUrl = out.fbUrl || null;
+
+    try {
+      // Prefer website if available
+      if (out.website) {
+        // If usePuppeteer flag is set, directly render with Puppeteer for better detection
+        let r = null;
+        if (usePuppeteer) {
+          const emailFromRender = await scrapeWithPuppeteer(out.website);
+          r = { email: emailFromRender, fbUrl: extractFacebookUrl(await fetchHtml(out.website) || '') };
+        } else {
+          r = await scrapeWebsite(out.website);
+        }
+
+        if (r && r.email) out.email = r.email;
+        if (r && r.fbUrl) out.fbUrl = r.fbUrl;
+
+        // If we have a fbUrl but no email, try scraping FB page
+        if (!out.email && out.fbUrl) {
+          const f = await scrapeFacebook(out.fbUrl);
+          if (f) out.email = f;
+        }
+      }
+    } catch (e) {
+      // ignore per-place errors
+    }
+
+    results.push(out);
+  }
+
+  return res.json({ results });
+});
