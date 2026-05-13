@@ -15,9 +15,10 @@ async function loadConfig() {
     state.GOOGLE_API_KEY = data.GOOGLE_MAPS_API_KEY || "";
     state.isLive = !!state.GOOGLE_API_KEY;
     updateModeTag(state.isLive);
-    console.log(state.isLive ? "✅ Live Mode" : "ℹ️ Mock Mode");
+    console.log('API Key from server:', state.GOOGLE_API_KEY ? `✅ Loaded (${state.GOOGLE_API_KEY.substring(0, 10)}...)` : '❌ NOT SET');
+    console.log(state.isLive ? "✅ Live Mode ENABLED" : "ℹ️ Mock Mode ENABLED");
   } catch (e) {
-    console.log("⚠️ Mock Mode");
+    console.log("⚠️ Mock Mode (config load failed)");
     state.isLive = false;
     updateModeTag(false);
   }
