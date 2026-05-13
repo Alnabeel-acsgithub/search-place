@@ -8,8 +8,10 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
+
 const BROWSER_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 };
 
 const SKIP_DOMAINS = ['sentry.io', 'wixpress.com', 'example.com', 'facebook.com', 'google.com'];
@@ -19,6 +21,13 @@ const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
 
 app.use(cors());
 app.use(express.json());
+
+// ====================== CONFIG ENDPOINT ======================
+app.get('/api/config', (req, res) => {
+  res.json({
+    GOOGLE_MAPS_API_KEY: GOOGLE_MAPS_API_KEY
+  });
+});
 
 // ====================== EMAIL HELPERS ======================
 function extractEmail(text) {
@@ -91,7 +100,7 @@ async function scrapeWithPuppeteer(url) {
   }
 }
 
-// ====================== MAIN SCRAPING ======================
+// ====================== SCRAPING FUNCTIONS ======================
 async function scrapeWebsite(url) {
   console.log(`[Website] → ${url}`);
   const html = await fetchHtml(url);
@@ -102,7 +111,6 @@ async function scrapeWebsite(url) {
 
   if (email) return { email, fbUrl };
 
-  // Try contact pages
   for (const p of CONTACT_PATHS) {
     const contactUrl = new URL(p, url).href;
     const cHtml = await fetchHtml(contactUrl);
@@ -130,7 +138,7 @@ async function scrapeFacebook(fbUrl) {
   return await scrapeWithPuppeteer(aboutUrl);
 }
 
-// ====================== API ROUTES ======================
+// ====================== API ======================
 app.post('/api/scrape-email', async (req, res) => {
   const { url, name, city } = req.body;
   let email = null;
@@ -146,13 +154,13 @@ app.post('/api/scrape-email', async (req, res) => {
     email = await scrapeFacebook(fbUrl);
   }
 
-  console.log(`✅ Final Email Found: ${email || 'Not Found'}`);
+  console.log(`✅ Final Email: ${email || 'Not Found'}`);
   res.json({ email: email || null });
 });
 
 app.get('/health', (req, res) => res.json({ status: "ok" }));
 
-// ====================== SERVE FRONTEND (IMPORTANT) ======================
+// ====================== SERVE FRONTEND ======================
 app.use(express.static(path.join(__dirname)));
 
 app.get('/', (req, res) => {
@@ -163,8 +171,12 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Start Server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌐 App: http://localhost:${PORT}`);
+  if (GOOGLE_MAPS_API_KEY) {
+    console.log(`✅ Google API Key is loaded`);
+  } else {
+    console.log(`⚠️  No Google API Key found in environment`);
+  }
 });
