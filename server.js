@@ -20,7 +20,7 @@ const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
 app.use(cors());
 app.use(express.json());
 
-// Extract Email
+// ====================== EMAIL HELPERS ======================
 function extractEmail(text) {
   if (!text) return null;
   const matches = text.match(EMAIL_RE) || [];
@@ -55,7 +55,7 @@ function extractFacebookUrl(html) {
   return match ? match[0].split('?')[0].split('#')[0] : null;
 }
 
-// Puppeteer
+// ====================== PUPPETEER ======================
 let browser = null;
 async function getBrowser() {
   if (!browser) {
@@ -84,14 +84,14 @@ async function scrapeWithPuppeteer(url) {
     const bodyText = await page.evaluate(() => document.body.innerText);
     return extractEmail(bodyText);
   } catch (e) {
-    console.log(`Puppeteer failed: ${url}`);
+    console.log(`Puppeteer failed for: ${url}`);
     return null;
   } finally {
     if (page) await page.close().catch(() => {});
   }
 }
 
-// Main Scraping Functions
+// ====================== MAIN SCRAPING ======================
 async function scrapeWebsite(url) {
   console.log(`[Website] → ${url}`);
   const html = await fetchHtml(url);
@@ -102,9 +102,9 @@ async function scrapeWebsite(url) {
 
   if (email) return { email, fbUrl };
 
-  // Try Contact Pages
-  for (const path of CONTACT_PATHS) {
-    const contactUrl = new URL(path, url).href;
+  // Try contact pages
+  for (const p of CONTACT_PATHS) {
+    const contactUrl = new URL(p, url).href;
     const cHtml = await fetchHtml(contactUrl);
     if (cHtml) {
       email = extractEmail(cHtml);
@@ -112,7 +112,6 @@ async function scrapeWebsite(url) {
     }
   }
 
-  // Final Puppeteer attempt
   email = await scrapeWithPuppeteer(url);
   return { email, fbUrl };
 }
@@ -128,11 +127,10 @@ async function scrapeFacebook(fbUrl) {
     let email = extractEmail(html);
     if (email) return email;
   }
-
   return await scrapeWithPuppeteer(aboutUrl);
 }
 
-// API
+// ====================== API ROUTES ======================
 app.post('/api/scrape-email', async (req, res) => {
   const { url, name, city } = req.body;
   let email = null;
@@ -148,12 +146,25 @@ app.post('/api/scrape-email', async (req, res) => {
     email = await scrapeFacebook(fbUrl);
   }
 
-  console.log(`✅ Final Email: ${email || 'Not Found'}`);
-  res.json({ email });
+  console.log(`✅ Final Email Found: ${email || 'Not Found'}`);
+  res.json({ email: email || null });
 });
 
 app.get('/health', (req, res) => res.json({ status: "ok" }));
 
+// ====================== SERVE FRONTEND (IMPORTANT) ======================
+app.use(express.static(path.join(__dirname)));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Start Server
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🌐 App: http://localhost:${PORT}`);
 });
