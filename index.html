@@ -367,10 +367,10 @@
 
   </main>
 
-  <!-- Scripts -->
-  <script src="config.js"></script>
-  <script src="mockData.js"></script>
-  <script src="app.js"></script>
+  <!-- Scripts (cache-busted to avoid stale HTML responses) -->
+  <script src="config.js?v=1"></script>
+  <script src="mockData.js?v=1"></script>
+  <script src="app.js?v=1"></script>
 
   <script>
     function fillSearch(keyword, location) {
