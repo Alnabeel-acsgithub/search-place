@@ -22,14 +22,12 @@ const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
 app.use(cors());
 app.use(express.json());
 
-// ====================== CONFIG ENDPOINT ======================
+// Config for Frontend
 app.get('/api/config', (req, res) => {
-  res.json({
-    GOOGLE_MAPS_API_KEY: GOOGLE_MAPS_API_KEY
-  });
+  res.json({ GOOGLE_MAPS_API_KEY: GOOGLE_MAPS_API_KEY });
 });
 
-// ====================== EMAIL HELPERS ======================
+// Email Helpers
 function extractEmail(text) {
   if (!text) return null;
   const matches = text.match(EMAIL_RE) || [];
@@ -47,11 +45,7 @@ async function fetchHtml(url, timeout = 10000) {
   try {
     const controller = new AbortController();
     setTimeout(() => controller.abort(), timeout);
-    
-    const res = await fetch(url, { 
-      signal: controller.signal,
-      headers: BROWSER_HEADERS 
-    });
+    const res = await fetch(url, { signal: controller.signal, headers: BROWSER_HEADERS });
     if (!res.ok) return null;
     return await res.text();
   } catch (e) {
@@ -64,7 +58,7 @@ function extractFacebookUrl(html) {
   return match ? match[0].split('?')[0].split('#')[0] : null;
 }
 
-// ====================== PUPPETEER ======================
+// Puppeteer
 let browser = null;
 async function getBrowser() {
   if (!browser) {
@@ -100,7 +94,7 @@ async function scrapeWithPuppeteer(url) {
   }
 }
 
-// ====================== SCRAPING FUNCTIONS ======================
+// Scraping Functions
 async function scrapeWebsite(url) {
   console.log(`[Website] → ${url}`);
   const html = await fetchHtml(url);
@@ -108,7 +102,6 @@ async function scrapeWebsite(url) {
 
   const fbUrl = extractFacebookUrl(html);
   let email = extractEmail(html);
-
   if (email) return { email, fbUrl };
 
   for (const p of CONTACT_PATHS) {
@@ -138,20 +131,18 @@ async function scrapeFacebook(fbUrl) {
   return await scrapeWithPuppeteer(aboutUrl);
 }
 
-// ====================== API ======================
+// API
 app.post('/api/scrape-email', async (req, res) => {
   const { url, name, city } = req.body;
   let email = null;
-  let fbUrl = null;
 
   if (url) {
     const result = await scrapeWebsite(url);
     email = result.email;
-    fbUrl = result.fbUrl;
   }
 
-  if (!email && fbUrl) {
-    email = await scrapeFacebook(fbUrl);
+  if (!email && result?.fbUrl) {
+    email = await scrapeFacebook(result.fbUrl);
   }
 
   console.log(`✅ Final Email: ${email || 'Not Found'}`);
@@ -160,7 +151,7 @@ app.post('/api/scrape-email', async (req, res) => {
 
 app.get('/health', (req, res) => res.json({ status: "ok" }));
 
-// ====================== SERVE FRONTEND ======================
+// Serve Frontend
 app.use(express.static(path.join(__dirname)));
 
 app.get('/', (req, res) => {
@@ -173,10 +164,5 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🌐 App: http://localhost:${PORT}`);
-  if (GOOGLE_MAPS_API_KEY) {
-    console.log(`✅ Google API Key is loaded`);
-  } else {
-    console.log(`⚠️  No Google API Key found in environment`);
-  }
+  console.log(GOOGLE_MAPS_API_KEY ? `✅ Google API Key Loaded` : `⚠️ Mock Mode Only`);
 });
