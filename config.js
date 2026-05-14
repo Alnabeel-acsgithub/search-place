@@ -216,11 +216,21 @@ function clearResults() {
   document.getElementById('welcomeState').classList.remove('hidden');
 }
 
+const EXPORT_EXCLUDED_TYPES = new Set(['veterinary_care', 'pet_store', 'store', 'point_of_interest']);
+const EXPORT_GENERIC_TYPES  = new Set(['point_of_interest', 'establishment', 'food', 'health', 'store', 'locality', 'political', 'premise', 'route']);
+
 function exportCSV() {
   const rows = (typeof state !== 'undefined' && state.results) ? state.results : [];
   if (!rows.length) return;
+
+  const exportRows = rows.filter(r => {
+    const types = r.types || [];
+    const primary = types.find(t => !EXPORT_GENERIC_TYPES.has(t)) || types[0] || '';
+    return !EXPORT_EXCLUDED_TYPES.has(primary);
+  });
+
   const headers = ['name','category','rating','address','city','phone','email','website','facebook','status'];
-  const csv = [headers.join(',')].concat(rows.map(r => [r.name, r.category, r.rating, r.formatted_address, r.city, r.formatted_phone_number, r.email || '', r.website || '', r.business_status || ''].map(v => '"' + (String(v||'').replace(/"/g,'""')) + '"').join(',')) ).join('\n');
+  const csv = [headers.join(',')].concat(exportRows.map(r => [r.name, r.category, r.rating, r.formatted_address, r.city, r.formatted_phone_number, r.email || '', r.website || '', r.business_status || ''].map(v => '"' + (String(v||'').replace(/"/g,'""')) + '"').join(',')) ).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
