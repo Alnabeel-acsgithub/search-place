@@ -159,11 +159,12 @@ function escapeAttr(s) {
 
 async function handleSearch(evt) {
   if (evt && evt.preventDefault) evt.preventDefault();
-  const kw = (document.getElementById('keyword') || {}).value || '';
+  const kwRaw = (document.getElementById('keyword') || {}).value || '';
+  const keywords = kwRaw.split(',').map(s => s.trim()).filter(Boolean);
   const loc = (document.getElementById('location') || {}).value || '';
-  if (!kw || !loc) return;
+  if (!keywords.length || !loc) return;
 
-  showLoading('Searching for places…');
+  showLoading(`Searching for ${keywords.join(', ')} in ${loc}…`);
 
     try {
     let results = [];
@@ -172,11 +173,10 @@ async function handleSearch(evt) {
     
     if (isLive) {
       console.log('🔴 Live Mode: Calling /api/search-places');
-      // Call backend live search
       const resp = await fetch('/api/search-places', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword: kw, location: loc })
+        body: JSON.stringify({ keywords, location: loc })
       });
       if (resp.ok) {
         const data = await resp.json();
