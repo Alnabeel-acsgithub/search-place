@@ -230,7 +230,7 @@ function exportCSV() {
   });
 
   const headers = ['name','category','rating','address','city','phone','email','website','facebook','status'];
-  const csv = [headers.join(',')].concat(exportRows.map(r => [r.name, r.category, r.rating, r.formatted_address, r.city, r.formatted_phone_number, r.email || '', r.website || '', r.business_status || ''].map(v => '"' + (String(v||'').replace(/"/g,'""')) + '"').join(',')) ).join('\n');
+  const csv = [headers.join(',')].concat(exportRows.map(r => [r.name, r.category, r.rating, r.formatted_address, r.city, r.formatted_phone_number, r.email || '', r.website || '', r.fbUrl || '', r.business_status || ''].map(v => '"' + (String(v||'').replace(/"/g,'""')) + '"').join(',')) ).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
